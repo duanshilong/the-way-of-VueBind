@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Document</title>
+	<style>
+  		#app {text-align: center;}
+	</style>
+</head>
+<body>
+	<div id="app">
+        <input v-model="number" type="text">
+        <button type="button" v-click="increatment">增加</button>
+        <h3 v-bind="number"></h3>
+	</div>
+	<script>
+         // 封装Vue
+         class Vue {
+             constructor(options){
+                this.data = options.data        //数据层
+                var id = options.el             //挂载点
+                this.observe(this.data, this)   //
+                this.methods = options.methods
+                var dom = this.compile(document.querySelector(id), this)
+             }
+            /**defineReactive 实现对象的响应化***/ 
+             defineReactive (obj,key,val){
+                const dep = new Dep()
+                Object.defineProperty(obj,key,{
+                    enumerable: true,
+                    configurable: true,
+                    get:function(){
+                        /*****进行依赖收集（需要一个方法）将Dep.target（即当前的Watcher对象存入dep的subs中）******/
+                        if (Dep.target) {
+                            dep.addsub(Dep.target)
+                        }
+                        return val 
+                    },
+                    set:function(newVal){
+                        if (newVal === val) return
+                        val = newVal
+                        dep.notify()
+                    }
+                })
+            }
+             /**通过遍历所有属性的方式对这个obj进行defineReactive的处理***/ 
+            observe (obj,vm){
+                if(!obj || (typeof obj !=='object')){
+                    return
+                }
+                Object.keys(obj).forEach(function(key){
+                    vm.defineReactive(obj, key, obj[key]);
+                })
+            }
+             /** 解析指令，实现对view和model的绑定*/ 
+            compile(root,vm){
+                // var _this = this
+			    var nodes =root.children
+                // 节点类型为元素
+                for (let i = 0; i < nodes.length; i++) {
+                    var node = nodes[i]
+                    if (node.children.length) {
+                        vm.compile(node,vm)
+                    }
+                    if (node.hasAttribute('v-click')) {
+                       node.onclick=(function(e){
+                            var attrval = nodes[i].getAttribute('v-click')
+                            console.log(attrval)
+                            return vm.methods[attrval].bind(vm.data)
+                       })()
+                    }
+                    if (node.hasAttribute('v-model')&&(node.tagName == 'INPUT' || node.tagName == 'TEXTAREA' )) {
+                        node.addEventListener('input',(function(e){
+                            var name= node.getAttribute('v-model')
+                            new watcher(vm, node, name, 'value') 
+                            return function(){
+                                vm.data[name] = nodes[e].value
+                            }
+                        })(i))
+                    }
+                    if (node.hasAttribute('v-bind')) {
+                        var name = node.getAttribute('v-bind')
+                        new watcher(vm, node, name, 'innerHTML') 
+                    }
+                    
+                }
+            }
+         }
+            
+        // 构造订阅者Dep
+        class Dep {
+            constructor(){
+                /* 用来存放Watcher对象的数组 */
+                this.subs = []
+            }
+            /*在subs中添加一个watch对象*/
+            addsub(sub){
+                this.subs.push(sub)
+            }
+            /*通知所有对象更新视图*/ 
+            notify(){
+                this.subs.forEach((sub) =>{
+                    sub.update()
+                })
+            }
+        } 
+        class watcher{
+            constructor(vm, node, name, type){
+                /* 在new一个Watcher对象时将该对象赋值给Dep.target，在get中会用到 */
+                Dep.target = this
+                this.name = name //指令对应的值
+                this.node = node //节点
+                this.vm = vm     //指令所属Vue
+                this.type = type //绑定的属性值，本例为InnerHTML
+                this.update()
+                Dep.target = null
+            }
+            update() {
+                this.get()
+                // this.node.nodeValue = this.value 
+                this.node[this.type] = this.value 
+            }
+            get() {
+                this.value = this.vm.data[this.name]
+            }
+        }
+        /***********依赖收集结束*******/ 
+       
+        let vm= new Vue({
+            el:'#app',
+            data:{
+                number: 2
+            },
+            methods:{
+                increatment:function(){
+                    this.number++
+                    console.log(this.number)
+                }
+            }
+        })
+       
+	</script>
+</body>
+</html>
